@@ -1,0 +1,50 @@
+name: Update AUR Package
+
+on:
+  schedule:
+    - cron: '0 */1 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest release version
+        id: latest
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/Necrom4/sbb-tui/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          CURRENT=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - name: Update PKGBUILD
+        if: steps.latest.outputs.latest != steps.latest.outputs.current
+        run: |
+          VERSION=${{ steps.latest.outputs.latest }}
+
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+
+          SHA256=$(curl -sL "https://github.com/Necrom4/sbb-tui/archive/refs/tags/v${VERSION}.tar.gz" | sha256sum | cut -d' ' -f1)
+          sed -i "s/^sha256sums=.*/sha256sums=('${SHA256}')/" PKGBUILD
+
+      - name: Generate .SRCINFO
+        if: steps.latest.outputs.latest != steps.latest.outputs.current
+        uses: hapakaien/archlinux-package-action@v2
+        with:
+          pkgbuild: PKGBUILD
+          flags: '--printsrcinfo > .SRCINFO'
+
+      - name: Publish to AUR
+        if: steps.latest.outputs.latest != steps.latest.outputs.current
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: sbb-tui
+          pkgbuild: PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to v${{ steps.latest.outputs.latest }}"
+          force_push: true
