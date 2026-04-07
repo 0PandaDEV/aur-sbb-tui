@@ -39,7 +39,7 @@ jobs:
 
       - name: Publish to AUR
         if: steps.latest.outputs.latest != steps.latest.outputs.current
-        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
         with:
           pkgname: sbb-tui
           pkgbuild: PKGBUILD
